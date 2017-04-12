@@ -270,6 +270,7 @@ public class MomentActivity extends BaseHttpListActivity<CommentItem, CommentAda
 			public void accept(Disposable disposable) throws Exception {
 				Log.d(TAG, "setList  Observable.doOnSubscribe  >> currentThread = " + Thread.currentThread().getName());
 				list = CommentUtil.toDoubleLevelList(list);
+				disposable.isDisposed();
 			}
 		}).subscribeOn(Schedulers.io()).subscribe();
 
