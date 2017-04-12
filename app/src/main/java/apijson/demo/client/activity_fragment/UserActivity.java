@@ -14,9 +14,36 @@ limitations under the License.*/
 
 package apijson.demo.client.activity_fragment;
 
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.view.View.OnTouchListener;
+import android.view.ViewGroup;
+import android.widget.GridView;
+import android.widget.TextView;
+
 import java.util.ArrayList;
 import java.util.List;
 
+import apijson.demo.client.R;
+import apijson.demo.client.base.BaseActivity;
+import apijson.demo.client.model.Moment;
+import apijson.demo.client.model.User;
+import apijson.demo.client.util.ActionUtil;
+import apijson.demo.client.util.HttpRequest;
+import apijson.demo.client.util.MenuUtil;
+import apijson.demo.client.view.UserView;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Action;
+import io.reactivex.schedulers.Schedulers;
 import zuo.biao.apijson.JSONRequest;
 import zuo.biao.apijson.JSONResponse;
 import zuo.biao.library.base.BaseView.OnDataChangedListener;
@@ -40,26 +67,6 @@ import zuo.biao.library.util.DataKeeper;
 import zuo.biao.library.util.JSON;
 import zuo.biao.library.util.Log;
 import zuo.biao.library.util.StringUtil;
-import android.annotation.SuppressLint;
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Bundle;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.View.OnTouchListener;
-import android.view.ViewGroup;
-import android.widget.GridView;
-import android.widget.TextView;
-import apijson.demo.client.R;
-import apijson.demo.client.base.BaseActivity;
-import apijson.demo.client.model.Moment;
-import apijson.demo.client.model.User;
-import apijson.demo.client.util.ActionUtil;
-import apijson.demo.client.util.HttpRequest;
-import apijson.demo.client.util.MenuUtil;
-import apijson.demo.client.view.UserView;
 
 /**联系人资料界面
  * @author Lemon
@@ -93,7 +100,7 @@ public class UserActivity extends BaseActivity implements OnClickListener, OnBot
 		setContentView(R.layout.user_activity, this);
 
 		registerObserver(this);
-		
+
 		intent = getIntent();
 		id = intent.getLongExtra(INTENT_ID, id);
 		isOnEditMode = intent.getBooleanExtra(INTENT_IS_ON_EDIT_MODE, isOnEditMode);
@@ -141,7 +148,7 @@ public class UserActivity extends BaseActivity implements OnClickListener, OnBot
 		//		//方式一
 		//		bvlUser = (BaseViewLayout<User>) findViewById(R.id.bvlUser);
 		//		bvlUser.createView(new UserView(context, getResources()));
-		//		
+		//
 		//		//方式二
 		//		uvlUser = (UserViewLayout) findViewById(R.id.uvlUser);
 
@@ -184,7 +191,7 @@ public class UserActivity extends BaseActivity implements OnClickListener, OnBot
 	}
 	/**显示用户
 	 * @param user_
-	 * @param momentList_ 
+	 * @param momentList_
 	 */
 	private void setUser(User user_, List<Moment> momentList_) {
 		this.user = user_;
@@ -269,26 +276,55 @@ public class UserActivity extends BaseActivity implements OnClickListener, OnBot
 			bottomMenuView.bindView(MenuUtil.getMenuList(MenuUtil.USER, id, ! User.isFirend(currentUser, id)));
 		}
 
-		runThread(TAG + "run", new Runnable() {
+//		runThread(TAG + "run", new Runnable() {
+//
+//			@Override
+//			public void run() {
+//				//先加载缓存数据，比网络请求快很多
+//				user = CacheManager.getInstance().get(User.class, "" + id);
+//				if (isOnEditMode == false) {
+//					momentList = CacheManager.getInstance().getList(Moment.class, "userId=" + id, 0, 3);
+//				}
+//				runUiThread(new Runnable() {
+//
+//					@Override
+//					public void run() {
+//						setUser(user, momentList);
+//					}
+//				});
+//
+//				HttpRequest.getUser(id, ! isOnEditMode, HTTP_GET, UserActivity.this);
+//			}
+//		});
 
+
+		//使用RxJava <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+		Observable.create(new ObservableOnSubscribe<User>() {
 			@Override
-			public void run() {
+			public void subscribe(ObservableEmitter<User> oe) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.create.subscribe  >> currentThread = " + Thread.currentThread().getName());
 				//先加载缓存数据，比网络请求快很多
 				user = CacheManager.getInstance().get(User.class, "" + id);
 				if (isOnEditMode == false) {
 					momentList = CacheManager.getInstance().getList(Moment.class, "userId=" + id, 0, 3);
 				}
-				runUiThread(new Runnable() {
 
-					@Override
-					public void run() {
-						setUser(user, momentList);
-					}
-				});
+				HttpRequest.getUser(id, ! isOnEditMode, HTTP_GET, UserActivity.this);
 
-				HttpRequest.getUser(id, ! isOnEditMode, HTTP_GET, UserActivity.this);						
+				oe.onComplete();
 			}
-		});
+		}).observeOn(AndroidSchedulers.mainThread()).doOnComplete(new Action() {
+			@Override
+			public void run() throws Exception {
+				Log.d(TAG, "setQRCode  Observable.doOnCompleted  user " + (user == null ? "=" : "!=") + " null"
+						+ ">> currentThread = " + Thread.currentThread().getName());
+
+				setUser(user, momentList);
+			}
+		}).subscribeOn(Schedulers.io()).subscribe();
+
+		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 	}
 
@@ -343,7 +379,7 @@ public class UserActivity extends BaseActivity implements OnClickListener, OnBot
 		if (isOnEditMode) {
 			findViewById(R.id.llUserRemark).setOnClickListener(this);
 			findViewById(R.id.llUserTag).setOnClickListener(this);
-			
+
 			userView.setOnDataChangedListener(new OnDataChangedListener() {
 
 				@Override
@@ -399,7 +435,7 @@ public class UserActivity extends BaseActivity implements OnClickListener, OnBot
 						isDataChanged = true;
 					}
 					break;
-				}				
+				}
 			}
 		});
 

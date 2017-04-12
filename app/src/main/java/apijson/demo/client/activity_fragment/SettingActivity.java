@@ -14,10 +14,6 @@ limitations under the License.*/
 
 package apijson.demo.client.activity_fragment;
 
-import zuo.biao.library.base.BaseActivity;
-import zuo.biao.library.interfaces.OnBottomDragListener;
-import zuo.biao.library.util.Log;
-import zuo.biao.library.util.SettingUtil;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -25,7 +21,18 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ImageView;
+
 import apijson.demo.client.R;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Action;
+import io.reactivex.schedulers.Schedulers;
+import zuo.biao.library.base.BaseActivity;
+import zuo.biao.library.interfaces.OnBottomDragListener;
+import zuo.biao.library.util.Log;
+import zuo.biao.library.util.SettingUtil;
 
 /**设置界面Activity
  * @author Lemon
@@ -71,16 +78,16 @@ public class SettingActivity extends BaseActivity implements OnBottomDragListene
 	private ImageView[] ivSettings;
 	@Override
 	public void initView() {//必须调用
-		
-		ivSettings = new ImageView[7];
-		ivSettings[0] = (ImageView) findViewById(R.id.ivSettingCache); 
-		ivSettings[1] = (ImageView) findViewById(R.id.ivSettingPreload); 
-		
-		ivSettings[2] = (ImageView) findViewById(R.id.ivSettingVoice); 
-		ivSettings[3] = (ImageView) findViewById(R.id.ivSettingVibrate); 
-		ivSettings[4] = (ImageView) findViewById(R.id.ivSettingNoDisturb); 
 
-		ivSettings[5] = (ImageView) findViewById(R.id.ivSettingTestMode); 
+		ivSettings = new ImageView[7];
+		ivSettings[0] = (ImageView) findViewById(R.id.ivSettingCache);
+		ivSettings[1] = (ImageView) findViewById(R.id.ivSettingPreload);
+
+		ivSettings[2] = (ImageView) findViewById(R.id.ivSettingVoice);
+		ivSettings[3] = (ImageView) findViewById(R.id.ivSettingVibrate);
+		ivSettings[4] = (ImageView) findViewById(R.id.ivSettingNoDisturb);
+
+		ivSettings[5] = (ImageView) findViewById(R.id.ivSettingTestMode);
 		ivSettings[6] = (ImageView) findViewById(R.id.ivSettingFirstStart);
 
 	}
@@ -124,28 +131,56 @@ public class SettingActivity extends BaseActivity implements OnBottomDragListene
 
 		showProgressDialog(R.string.loading);
 
-		runThread(TAG + "initData", new Runnable() {
+//		runThread(TAG + "initData", new Runnable() {
+//
+//			@Override
+//			public void run() {
+//
+//				settings = SettingUtil.getAllBooleans(context);
+//				runUiThread(new Runnable() {
+//
+//					@Override
+//					public void run() {
+//						dismissProgressDialog();
+//						if (settings == null || settings.length <= 0) {
+//							finish();
+//							return;
+//						}
+//						for (int i = 0; i < settings.length; i++) {
+//							setSwitch(i, settings[i]);
+//						}
+//					}
+//				});
+//			}
+//		});
 
+		//使用RxJava <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+		Observable.create(new ObservableOnSubscribe<Object>() {
 			@Override
-			public void run() {
-
+			public void subscribe(ObservableEmitter<Object> oe) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.create.subscribe  >> currentThread = " + Thread.currentThread().getName());
 				settings = SettingUtil.getAllBooleans(context);
-				runUiThread(new Runnable() {
 
-					@Override
-					public void run() {
-						dismissProgressDialog();
-						if (settings == null || settings.length <= 0) {
-							finish();
-							return;
-						}
-						for (int i = 0; i < settings.length; i++) {
-							setSwitch(i, settings[i]);
-						}
-					}
-				});
+				oe.onComplete();
 			}
-		});
+		}).observeOn(AndroidSchedulers.mainThread()).doOnComplete(new Action() {
+			@Override
+			public void run() throws Exception {
+				Log.d(TAG, "setQRCode  Observable.doOnCompleted  settings " + (settings == null ? "=" : "!=") + " null"
+						+ ">> currentThread = " + Thread.currentThread().getName());
+				dismissProgressDialog();
+				if (settings == null || settings.length <= 0) {
+					finish();
+					return;
+				}
+				for (int i = 0; i < settings.length; i++) {
+					setSwitch(i, settings[i]);
+				}
+			}
+		}).subscribeOn(Schedulers.io()).subscribe();
+
+		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
 	}
@@ -165,7 +200,7 @@ public class SettingActivity extends BaseActivity implements OnBottomDragListene
 
 	@Override
 	public void initEvent() {//必须调用
-		
+
 		for (int i = 0; i < ivSettings.length; i++) {
 			final int which = i;
 			ivSettings[which].setOnClickListener(new OnClickListener() {
@@ -173,7 +208,7 @@ public class SettingActivity extends BaseActivity implements OnBottomDragListene
 				@Override
 				public void onClick(View v) {
 					isSettingChanged = true;
-					setSwitch(which, ! settings[which]);					
+					setSwitch(which, ! settings[which]);
 				}
 			});
 		}
@@ -185,7 +220,7 @@ public class SettingActivity extends BaseActivity implements OnBottomDragListene
 			SettingUtil.restoreDefault();
 			initData();
 			return;
-		}	
+		}
 
 		finish();
 	}

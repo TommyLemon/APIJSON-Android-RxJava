@@ -14,8 +14,29 @@ limitations under the License.*/
 
 package apijson.demo.client.activity_fragment;
 
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
 import java.io.File;
 
+import apijson.demo.client.R;
+import apijson.demo.client.application.APIJSONApplication;
+import apijson.demo.client.base.BaseFragment;
+import apijson.demo.client.model.Login;
+import apijson.demo.client.model.User;
+import apijson.demo.client.util.HttpRequest;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
 import zuo.biao.apijson.JSONResponse;
 import zuo.biao.apijson.StringUtil;
 import zuo.biao.library.base.BaseView.OnDataChangedListener;
@@ -25,20 +46,6 @@ import zuo.biao.library.ui.AlertDialog.OnDialogButtonClickListener;
 import zuo.biao.library.util.DownloadUtil;
 import zuo.biao.library.util.ImageLoaderUtil;
 import zuo.biao.library.util.Log;
-import android.content.Intent;
-import android.os.Bundle;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.TextView;
-import apijson.demo.client.R;
-import apijson.demo.client.application.APIJSONApplication;
-import apijson.demo.client.base.BaseFragment;
-import apijson.demo.client.model.Login;
-import apijson.demo.client.model.User;
-import apijson.demo.client.util.HttpRequest;
 
 /**设置fragment
  * @author Lemon
@@ -57,7 +64,7 @@ public class SettingFragment extends BaseFragment implements OnClickListener, On
 		return new SettingFragment();
 	}
 
-	//与Activity通信>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>	
+	//与Activity通信>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
 
@@ -69,13 +76,13 @@ public class SettingFragment extends BaseFragment implements OnClickListener, On
 		//类相关初始化，必须使用>>>>>>>>>>>>>>>>
 
 		registerObserver(this);
-		
+
 		//功能归类分区方法，必须调用<<<<<<<<<<
 		initView();
 		initData();
 		initEvent();
 		//功能归类分区方法，必须调用>>>>>>>>>>
-		
+
 		return view;
 	}
 
@@ -104,10 +111,10 @@ public class SettingFragment extends BaseFragment implements OnClickListener, On
 			public void run() {
 				if (isLoggedIn) {
 					ImageLoaderUtil.loadImage(ivSettingHead, user.getHead(), ImageLoaderUtil.TYPE_ROUND_CORNER);
-					tvSettingName.setText(StringUtil.getTrimedString(user.getName()));		
+					tvSettingName.setText(StringUtil.getTrimedString(user.getName()));
 				} else {
 					ivSettingHead.setImageResource(R.drawable.ic_launcher);
-					tvSettingName.setText("未登录");		
+					tvSettingName.setText("未登录");
 				}
 			}
 		});
@@ -131,7 +138,7 @@ public class SettingFragment extends BaseFragment implements OnClickListener, On
 	@Override
 	public void initData() {//必须调用
 		super.initData();
-		
+
 	}
 
 	@Override
@@ -139,27 +146,52 @@ public class SettingFragment extends BaseFragment implements OnClickListener, On
 		setUser(APIJSONApplication.getInstance().getCurrentUser());
 	}
 
-	
+
 	/**下载应用
 	 */
 	private void downloadApp() {
 		showProgressDialog("正在下载...");
-		runThread(TAG + "downloadApp", new Runnable() {
+//		runThread(TAG + "downloadApp", new Runnable() {
+//			@Override
+//			public void run() {
+//				final File file = DownloadUtil.downLoadFile(context, "APIJSON", ".apk"
+//						, "http://files.cnblogs.com/files/tommylemon/APIJSON%28ADT%29.apk");
+//
+//				runUiThread(new Runnable() {
+//
+//					@Override
+//					public void run() {
+//						dismissProgressDialog();
+//						DownloadUtil.openFile(context, file);
+//					}
+//				});
+//			}
+//		});
+
+
+		//使用RxJava <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+		Observable.create(new ObservableOnSubscribe<File>() {
 			@Override
-			public void run() {
-				final File file = DownloadUtil.downLoadFile(context, "APIJSON", ".apk"
+			public void subscribe(ObservableEmitter<File> oe) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.create.subscribe  >> currentThread = " + Thread.currentThread().getName());
+				File file = DownloadUtil.downLoadFile(context, "APIJSON", ".apk"
 						, "http://files.cnblogs.com/files/tommylemon/APIJSON%28ADT%29.apk");
 
-				runUiThread(new Runnable() {
-
-					@Override
-					public void run() {
-						dismissProgressDialog();
-						DownloadUtil.openFile(context, file);
-					}
-				});
+				oe.onNext(file);
+				oe.onComplete();
 			}
-		});
+		}).observeOn(AndroidSchedulers.mainThread()).doOnNext(new Consumer<File>() {
+			@Override
+			public void accept(File file) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.doOnCompleted  file " + (file == null ? "=" : "!=") + " null"
+						+ ">> currentThread = " + Thread.currentThread().getName());
+				dismissProgressDialog();
+				DownloadUtil.openFile(context, file);
+			}
+		}).subscribeOn(Schedulers.io()).subscribe();
+
+		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	}
 
 

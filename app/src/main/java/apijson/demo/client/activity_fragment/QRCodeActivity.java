@@ -14,13 +14,6 @@ limitations under the License.*/
 
 package apijson.demo.client.activity_fragment;
 
-import zuo.biao.library.base.BaseActivity;
-import zuo.biao.library.interfaces.OnBottomDragListener;
-import zuo.biao.library.manager.CacheManager;
-import zuo.biao.library.util.ImageLoaderUtil;
-import zuo.biao.library.util.JSON;
-import zuo.biao.library.util.Log;
-import zuo.biao.library.util.StringUtil;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -29,11 +22,27 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
-import apijson.demo.client.R;
-import apijson.demo.client.model.User;
 
 import com.google.zxing.WriterException;
 import com.zxing.encoding.EncodingHandler;
+
+import apijson.demo.client.R;
+import apijson.demo.client.model.User;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
+import zuo.biao.library.base.BaseActivity;
+import zuo.biao.library.interfaces.OnBottomDragListener;
+import zuo.biao.library.manager.CacheManager;
+import zuo.biao.library.util.ImageLoaderUtil;
+import zuo.biao.library.util.JSON;
+import zuo.biao.library.util.Log;
+import zuo.biao.library.util.StringUtil;
 
 /**二维码界面Activity
  * @author Lemon
@@ -86,16 +95,16 @@ public class QRCodeActivity extends BaseActivity implements OnBottomDragListener
 	private TextView tvQRCodeName;
 
 	private ImageView ivQRCodeCode;
-	private View ivQRCodeProgress;
+	private View pbQRCode;
 	@Override
 	public void initView() {//必须调用
 		autoSetTitle();
-		
+
 		ivQRCodeHead = (ImageView) findViewById(R.id.ivQRCodeHead);
 		tvQRCodeName = (TextView) findViewById(R.id.tvQRCodeName);
 
 		ivQRCodeCode = (ImageView) findViewById(R.id.ivQRCodeCode);
-		ivQRCodeProgress = findViewById(R.id.ivQRCodeProgress);
+		pbQRCode = findViewById(R.id.pbQRCode);
 	}
 
 
@@ -113,61 +122,115 @@ public class QRCodeActivity extends BaseActivity implements OnBottomDragListener
 	//Data数据区(存在数据获取或处理代码，但不存在事件监听代码)<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
-	private User user;
+//	private User user;
 	@Override
 	public void initData() {//必须调用
-		
-		ivQRCodeProgress.setVisibility(View.VISIBLE);
-		runThread(TAG + "initData", new Runnable() {
 
+//		pbQRCode.setVisibility(View.VISIBLE);
+//		runThread(TAG + "initData", new Runnable() {
+//
+//			@Override
+//			public void run() {
+//
+//				user = CacheManager.getInstance().get(User.class, "" + userId);
+//				if (user == null) {
+//					user = new User(userId);
+//				}
+//				runUiThread(new Runnable() {
+//					@Override
+//					public void run() {
+//						ImageLoaderUtil.loadImage(ivQRCodeHead, user.getHead());
+//						tvQRCodeName.setText(StringUtil.getTrimedString(
+//								StringUtil.isNotEmpty(user.getName(), true)
+//								? user.getName() : user.getPhone()));
+//					}
+//				});
+//
+//				setQRCode(user);
+//			}
+//		});
+
+		//使用RxJava <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+		Observable.create(new ObservableOnSubscribe<User>() {
 			@Override
-			public void run() {
+			public void subscribe(ObservableEmitter<User> oe) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.create.subscribe  >> currentThread = " + Thread.currentThread().getName());
+				User user = CacheManager.getInstance().get(User.class, "" + userId);
 
-				user = CacheManager.getInstance().get(User.class, "" + userId);
+				oe.onNext(user);
+
+				try {//如果用onNext接收就不要用全局变量
+					qRCodeBitmap = EncodingHandler.createQRCode(JSON.toJSONString(user)
+							, (int) (2 * getResources().getDimension(R.dimen.qrcode_size)));
+				} catch (WriterException e) {
+					e.printStackTrace();
+					Log.e(TAG, "initData  try {Bitmap qrcode = EncodingHandler.createQRCode(contactJson, ivQRCodeCode.getWidth());" +
+							" >> } catch (WriterException e) {" + e.getMessage());
+				}
+
+				oe.onComplete();
+			}
+		}).observeOn(AndroidSchedulers.mainThread()).doOnNext(new Consumer<User>() {
+			@Override
+			public void accept(User user) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.doOnNext  user " + (user == null ? "=" : "!=") + " null"
+						+ ">> currentThread = " + Thread.currentThread().getName());
+
 				if (user == null) {
 					user = new User(userId);
 				}
-				runUiThread(new Runnable() {
-					@Override
-					public void run() {
-						ImageLoaderUtil.loadImage(ivQRCodeHead, user.getHead());
-						tvQRCodeName.setText(StringUtil.getTrimedString(
-								StringUtil.isNotEmpty(user.getName(), true)
+
+				ImageLoaderUtil.loadImage(ivQRCodeHead, user.getHead());
+				tvQRCodeName.setText(StringUtil.getTrimedString(
+						StringUtil.isNotEmpty(user.getName(), true)
 								? user.getName() : user.getPhone()));
-					}
-				});
-
-				setQRCode(user);
 			}
-		});
-
-	}
-
-	private Bitmap qRCodeBitmap;
-	protected void setQRCode(User user) {
-		if (user == null) {
-			Log.e(TAG, "setQRCode  user == null" +
-					" || StringUtil.isNotEmpty(user.getPhone(), true) == false >> return;");
-			return;
-		}
-
-		try {
-			qRCodeBitmap = EncodingHandler.createQRCode(JSON.toJSONString(user)
-					, (int) (2 * getResources().getDimension(R.dimen.qrcode_size)));
-		} catch (WriterException e) {
-			e.printStackTrace();
-			Log.e(TAG, "initData  try {Bitmap qrcode = EncodingHandler.createQRCode(contactJson, ivQRCodeCode.getWidth());" +
-					" >> } catch (WriterException e) {" + e.getMessage());
-		}
-
-		runUiThread(new Runnable() {
+		}).observeOn(AndroidSchedulers.mainThread()).doOnComplete(new Action() {
 			@Override
-			public void run() {
-					ivQRCodeProgress.setVisibility(View.GONE);
-					ivQRCodeCode.setImageBitmap(qRCodeBitmap);						
+			public void run() throws Exception {
+				Log.d(TAG, "setQRCode  Observable.doOnCompleted  qRCodeBitmap " + (qRCodeBitmap == null ? "=" : "!=") + " null"
+						+ ">> currentThread = " + Thread.currentThread().getName());
+
+				pbQRCode.setVisibility(View.GONE);
+				ivQRCodeCode.setImageBitmap(qRCodeBitmap);
 			}
-		});	
+		}).doOnSubscribe(new Consumer<Disposable>() {
+			@Override
+			public void accept(Disposable disposable) throws Exception {
+				pbQRCode.setVisibility(View.VISIBLE);
+			}
+		}).subscribeOn(Schedulers.io()).subscribe();
+
+		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 	}
+
+	private Bitmap qRCodeBitmap;//如果用onNext接收就不要用全局变量
+//	protected void setQRCode(User user) {
+//		if (user == null) {
+//			Log.e(TAG, "setQRCode  user == null" +
+//					" || StringUtil.isNotEmpty(user.getPhone(), true) == false >> return;");
+//			return;
+//		}
+//
+//		try {
+//			qRCodeBitmap = EncodingHandler.createQRCode(JSON.toJSONString(user)
+//					, (int) (2 * getResources().getDimension(R.dimen.qrcode_size)));
+//		} catch (WriterException e) {
+//			e.printStackTrace();
+//			Log.e(TAG, "initData  try {Bitmap qrcode = EncodingHandler.createQRCode(contactJson, ivQRCodeCode.getWidth());" +
+//					" >> } catch (WriterException e) {" + e.getMessage());
+//		}
+//
+//		runUiThread(new Runnable() {
+//			@Override
+//			public void run() {
+//				pbQRCode.setVisibility(View.GONE);
+//				ivQRCodeCode.setImageBitmap(qRCodeBitmap);
+//			}
+//		});
+//	}
 
 	//Data数据区(存在数据获取或处理代码，但不存在事件监听代码)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -206,9 +269,9 @@ public class QRCodeActivity extends BaseActivity implements OnBottomDragListener
 	protected void onDestroy() {
 		super.onDestroy();
 
-		ivQRCodeProgress = null;
+		pbQRCode = null;
 		ivQRCodeCode = null;
-		user = null;
+//		user = null;
 
 		if (qRCodeBitmap != null) {
 			if (qRCodeBitmap.isRecycled() == false) {

@@ -41,10 +41,11 @@ import apijson.demo.client.interfaces.TopBarMenuCallback;
 import apijson.demo.client.model.MomentItem;
 import apijson.demo.client.util.CommentUtil;
 import apijson.demo.client.util.HttpRequest;
-import rx.Observable;
-import rx.functions.Action0;
-import rx.functions.Action1;
-import rx.functions.Func1;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Function;
+import io.reactivex.schedulers.Schedulers;
 import zuo.biao.apijson.JSON;
 import zuo.biao.apijson.JSONRequest;
 import zuo.biao.apijson.JSONResponse;
@@ -65,8 +66,8 @@ import zuo.biao.library.util.Log;
  *       查看 .SettingUtil 中的@must和@warn
  */
 public class MomentListFragment extends BaseHttpListFragment<MomentItem, MomentAdapter>
-implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
-, OnBottomDragListener, OnDataChangedListener {
+		implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
+		, OnBottomDragListener, OnDataChangedListener {
 	private static final String TAG = "MomentListFragment";
 
 	//与Activity通信<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -173,7 +174,7 @@ implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
 
 	}
 
-	List<MomentItem> list;
+	private List<MomentItem> list;
 	@Override
 	public void setList(List<MomentItem> list_) {
 //		runThread(TAG + "setList", new Runnable() {
@@ -218,19 +219,21 @@ implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
 		if (list == null) {
 			list = new ArrayList<>();
 		}
-		Observable.from(list).map(new Func1<MomentItem, MomentItem>() {
+
+		Observable.fromIterable(list).map(new Function<MomentItem, MomentItem>() {
 			@Override
-			public MomentItem call(MomentItem item) {
-				Log.d(TAG, "setList  Observable.map.call  >> ");
+			public MomentItem apply(MomentItem item) throws Exception {
+				Log.d(TAG, "setList  Observable.map.call  >> currentThread = " + Thread.currentThread().getName());
 				if (item != null) {
 					item.setCommentItemList(CommentUtil.toSingleLevelList(item.getCommentItemList()));
 				}
 				return item;
 			}
-		}).doOnCompleted(new Action0() {
+		}).observeOn(AndroidSchedulers.mainThread()).doOnComplete(new Action() {
 			@Override
-			public void call() {
-				Log.d(TAG, "setList  Observable.doOnCompleted  list.size() = \n" + list.size());
+			public void run() throws Exception {
+				Log.d(TAG, "setList  Observable.doOnCompleted  list.size() = \n" + (list == null ? null : list.size())
+						+ ">> currentThread = " + Thread.currentThread().getName());
 				setList(new AdapterCallBack<MomentAdapter>() {
 
 					@Override
@@ -244,12 +247,8 @@ implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
 					}
 				});
 			}
-		}).subscribe(new Action1<MomentItem>() {
-			@Override
-			public void call(MomentItem item) {
-				Log.d(TAG, "setList  Observable.subscribe.call  item = \n" + JSON.toJSONString(item));
-			}
-		});
+		}).subscribeOn(Schedulers.io()).subscribe();
+
 
 		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -331,7 +330,7 @@ implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
 	}
 	@Override
 	public int getCacheCount() {
-		return 5;
+		return 3;
 	}
 
 
@@ -404,21 +403,21 @@ implements CacheCallBack<MomentItem>, OnHttpResponseListener, TopBarMenuCallback
 			return;
 		}
 		switch (requestCode) {
-		case REQUEST_TO_EDIT_TEXT_INFO:
-			if (data != null) {
-				String value = StringUtil.getString(data.getStringExtra(EditTextInfoWindow.RESULT_VALUE));
-				String split = "";
-				JSONRequest search = new JSONRequest();
-				if (StringUtil.isNotEmpty(value, true)) {
-					split = ":";
-					search.putSearch("content", value, SQL.SEARCH_TYPE_CONTAIN_ORDER);
+			case REQUEST_TO_EDIT_TEXT_INFO:
+				if (data != null) {
+					String value = StringUtil.getString(data.getStringExtra(EditTextInfoWindow.RESULT_VALUE));
+					String split = "";
+					JSONRequest search = new JSONRequest();
+					if (StringUtil.isNotEmpty(value, true)) {
+						split = ":";
+						search.putSearch("content", value, SQL.SEARCH_TYPE_CONTAIN_ORDER);
+					}
+					toActivity(MomentListActivity.createIntent(context, range, id, search, false)
+							.putExtra(INTENT_TITLE, "搜索" + split + value));
 				}
-				toActivity(MomentListActivity.createIntent(context, range, id, search, false)
-						.putExtra(INTENT_TITLE, "搜索" + split + value));
-			}
-			break;
-		default:
-			break;
+				break;
+			default:
+				break;
 		}
 	}
 

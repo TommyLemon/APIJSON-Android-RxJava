@@ -14,8 +14,39 @@ limitations under the License.*/
 
 package apijson.demo.client.activity_fragment;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Bundle;
+import android.os.Handler;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
+import android.widget.AdapterView.OnItemLongClickListener;
+import android.widget.EditText;
+
+import java.util.ArrayList;
 import java.util.List;
 
+import apijson.demo.client.R;
+import apijson.demo.client.adapter.CommentAdapter;
+import apijson.demo.client.application.APIJSONApplication;
+import apijson.demo.client.manager.HttpManager;
+import apijson.demo.client.model.Comment;
+import apijson.demo.client.model.CommentItem;
+import apijson.demo.client.model.MomentItem;
+import apijson.demo.client.model.User;
+import apijson.demo.client.util.CommentUtil;
+import apijson.demo.client.util.HttpRequest;
+import apijson.demo.client.view.CommentItemView.OnCommentClickListener;
+import apijson.demo.client.view.MomentView;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
 import zuo.biao.apijson.JSON;
 import zuo.biao.apijson.JSONResponse;
 import zuo.biao.library.base.BaseHttpListActivity;
@@ -32,29 +63,6 @@ import zuo.biao.library.util.EditTextUtil;
 import zuo.biao.library.util.Log;
 import zuo.biao.library.util.SettingUtil;
 import zuo.biao.library.util.StringUtil;
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Bundle;
-import android.os.Handler;
-import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
-import android.widget.AdapterView.OnItemLongClickListener;
-import android.widget.EditText;
-import apijson.demo.client.R;
-import apijson.demo.client.adapter.CommentAdapter;
-import apijson.demo.client.application.APIJSONApplication;
-import apijson.demo.client.manager.HttpManager;
-import apijson.demo.client.model.Comment;
-import apijson.demo.client.model.CommentItem;
-import apijson.demo.client.model.MomentItem;
-import apijson.demo.client.model.User;
-import apijson.demo.client.util.CommentUtil;
-import apijson.demo.client.util.HttpRequest;
-import apijson.demo.client.view.CommentItemView.OnCommentClickListener;
-import apijson.demo.client.view.MomentView;
 
 /**用户列表界面fragment
  * @author Lemon
@@ -63,8 +71,8 @@ import apijson.demo.client.view.MomentView;
  *       查看 .SettingUtil 中的@must和@warn
  */
 public class MomentActivity extends BaseHttpListActivity<CommentItem, CommentAdapter>
-implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickListener
-, OnBottomDragListener, OnClickListener, OnDialogButtonClickListener {
+		implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickListener
+		, OnBottomDragListener, OnClickListener, OnDialogButtonClickListener {
 	private static final String TAG = "MomentActivity";
 
 	//启动方法<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -198,35 +206,75 @@ implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickLis
 		});
 	}
 
+	private List<CommentItem> list;
 	@Override
-	public void setList(final List<CommentItem> list) {
-		runThread(TAG + "setList", new Runnable() {
+	public void setList(final List<CommentItem> list_) {
+//		runThread(TAG + "setList", new Runnable() {
+//
+//			@Override
+//			public void run() {
+//				final List<CommentItem> list_ = CommentUtil.toDoubleLevelList(list);
+//
+//				runUiThread(new Runnable() {
+//
+//					@Override
+//					public void run() {
+//						setList(new AdapterCallBack<CommentAdapter>() {
+//
+//							@Override
+//							public CommentAdapter createAdapter() {
+//								return new CommentAdapter(context, MomentActivity.this);
+//							}
+//
+//							@Override
+//							public void refreshAdapter() {
+//								//	adapter.setShowAll(true);
+//								adapter.refresh(list_);
+//							}
+//						});
+//					}
+//				});
+//			}
+//		});
 
+
+		//使用RxJava <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+		this.list = list_;
+
+		if (list == null) {
+			list = new ArrayList<>();
+		}
+		Observable.fromIterable(list)
+				.observeOn(AndroidSchedulers.mainThread()).doOnComplete(new Action() {
 			@Override
-			public void run() {
-				final List<CommentItem> list_ = CommentUtil.toDoubleLevelList(list);
-
-				runUiThread(new Runnable() {
+			public void run() throws Exception {
+				Log.d(TAG, "setList  Observable.doOnCompleted  list.size() = \n" + (list == null ? null : list.size())
+						+ ">> currentThread = " + Thread.currentThread().getName());
+				setList(new AdapterCallBack<CommentAdapter>() {
 
 					@Override
-					public void run() {
-						setList(new AdapterCallBack<CommentAdapter>() {
+					public CommentAdapter createAdapter() {
+						return new CommentAdapter(context, MomentActivity.this);
+					}
 
-							@Override
-							public CommentAdapter createAdapter() {
-								return new CommentAdapter(context, MomentActivity.this);
-							}
-
-							@Override
-							public void refreshAdapter() {
-								//	adapter.setShowAll(true);
-								adapter.refresh(list_);
-							}
-						});
+					@Override
+					public void refreshAdapter() {
+						//	adapter.setShowAll(true);
+						adapter.refresh(list);
 					}
 				});
 			}
-		});
+		}).doOnSubscribe(new Consumer<Disposable>() {
+			@Override
+			public void accept(Disposable disposable) throws Exception {
+				Log.d(TAG, "setList  Observable.doOnSubscribe  >> currentThread = " + Thread.currentThread().getName());
+				list = CommentUtil.toDoubleLevelList(list);
+			}
+		}).subscribeOn(Schedulers.io()).subscribe();
+
+		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 	}
 
 
@@ -410,17 +458,17 @@ implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickLis
 			@Override
 			public void onClick(View v) {
 				switch (v.getId()) {
-				case R.id.tvMomentViewContent:
-					if (momentItem != null) {
-						CommonUtil.copyText(context, momentItem.getMoment().getContent());
-					}
-					break;
-				case R.id.ivMomentViewComment:
-					showInput(null);
-					break;
-				default:
-					momentView.onClick(v);
-					break;
+					case R.id.tvMomentViewContent:
+						if (momentItem != null) {
+							CommonUtil.copyText(context, momentItem.getMoment().getContent());
+						}
+						break;
+					case R.id.ivMomentViewComment:
+						showInput(null);
+						break;
+					default:
+						momentView.onClick(v);
+						break;
 				}
 			}
 		});
@@ -502,6 +550,14 @@ implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickLis
 	@Override
 	public void onHttpResponse(int requestCode, String resultJson, Exception e) {
 		JSONResponse response = new JSONResponse(resultJson);
+		if (requestCode <= 0) {
+			if (requestCode == 0 && momentItem != null) {
+				setHead(momentItem.setCommentCount(response.getTotal()));
+			}
+			super.onHttpResponse(requestCode, resultJson, e);
+			return;
+		}
+
 		if (requestCode == HTTP_GET_MOMENT) {
 			MomentItem data = JSONResponse.toObject(response, MomentItem.class);
 			if (data == null || data.getId() <= 0) {
@@ -516,30 +572,26 @@ implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickLis
 			setHead(data);
 			return;
 		}
-		if (requestCode <= 0) {
-			showShortToast("total=" + response.getTotal());
-			super.onHttpResponse(requestCode, resultJson, e);
-			return;
-		}
+
 
 		JSONResponse comment = response.getJSONResponse(Comment.class.getSimpleName());
 		boolean succeed = JSONResponse.isSucceed(comment);
 		String operation = "操作";
 		switch (requestCode) {
-		case HTTP_COMMENT: // 新增评论
-			operation = "评论";
-			break;
-		case HTTP_REPLY:// 回复
-			operation = "回复";
-			break;
-		case HTTP_DELETE:// 删除
-			operation = "删除";
-			if (succeed) {//MomentItem中仍然存有Comment，可重写saveCache，单独存里面的Moment和Comment等
-				CacheManager.getInstance().remove(getCacheClass(), comment == null ? "0" : "" + comment.getId());
-			}
-			break;
-		default:
-			return;
+			case HTTP_COMMENT: // 新增评论
+				operation = "评论";
+				break;
+			case HTTP_REPLY:// 回复
+				operation = "回复";
+				break;
+			case HTTP_DELETE:// 删除
+				operation = "删除";
+				if (succeed) {//MomentItem中仍然存有Comment，可重写saveCache，单独存里面的Moment和Comment等
+					CacheManager.getInstance().remove(getCacheClass(), comment == null ? "0" : "" + comment.getId());
+				}
+				break;
+			default:
+				return;
 		}
 
 		showShortToast(operation + (succeed ? "成功" : "失败，请检查网络后重试"));
@@ -575,11 +627,11 @@ implements CacheCallBack<CommentItem>, OnHttpResponseListener, OnCommentClickLis
 	@Override
 	public void onClick(View v) {
 		switch (v.getId()) {
-		case R.id.tvMomentSend:
-			sendComment();
-			break;
-		default:
-			break;
+			case R.id.tvMomentSend:
+				sendComment();
+				break;
+			default:
+				break;
 		}
 	}
 

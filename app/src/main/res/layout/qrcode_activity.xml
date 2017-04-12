@@ -44,7 +44,7 @@
                 style="@style/match_match" />
 
             <ProgressBar
-                android:id="@+id/ivQRCodeProgress"
+                android:id="@+id/pbQRCode"
                 style="?android:attr/progressBarStyleLarge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

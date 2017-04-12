@@ -14,33 +14,40 @@ limitations under the License.*/
 
 package apijson.demo.client.activity_fragment;
 
-import java.io.File;
-
-import zuo.biao.library.base.BaseActivity;
-import zuo.biao.library.interfaces.OnBottomDragListener;
-import zuo.biao.library.ui.WebViewActivity;
-import zuo.biao.library.util.CommonUtil;
-import zuo.biao.library.util.DownloadUtil;
-import zuo.biao.library.util.SettingUtil;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import com.google.zxing.WriterException;
+import com.zxing.encoding.EncodingHandler;
+
+import java.io.File;
+
 import apijson.demo.client.R;
 import apijson.demo.client.application.APIJSONApplication;
 import apijson.demo.client.util.Constant;
 import apijson.demo.client.util.HttpRequest;
-
-import com.google.zxing.WriterException;
-import com.zxing.encoding.EncodingHandler;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Action;
+import io.reactivex.schedulers.Schedulers;
+import zuo.biao.library.base.BaseActivity;
+import zuo.biao.library.interfaces.OnBottomDragListener;
+import zuo.biao.library.ui.WebViewActivity;
+import zuo.biao.library.util.CommonUtil;
+import zuo.biao.library.util.DownloadUtil;
+import zuo.biao.library.util.Log;
+import zuo.biao.library.util.SettingUtil;
 
 /**关于界面
  * @author Lemon
@@ -92,7 +99,7 @@ public class AboutActivity extends BaseActivity implements OnClickListener, OnLo
 	private ImageView ivAboutQRCode;
 	@Override
 	public void initView() {
-		
+
 		ivAboutGesture = (ImageView) findViewById(R.id.ivAboutGesture);
 		ivAboutGesture.setVisibility(SettingUtil.isFirstStart ? View.VISIBLE : View.GONE);
 		if (SettingUtil.isFirstStart) {
@@ -120,7 +127,7 @@ public class AboutActivity extends BaseActivity implements OnClickListener, OnLo
 
 	@Override
 	public void initData() {
-		
+
 		tvAboutAppInfo.setText(APIJSONApplication.getInstance().getAppName()
 				+ "\n" + APIJSONApplication.getInstance().getAppVersion());
 
@@ -132,11 +139,36 @@ public class AboutActivity extends BaseActivity implements OnClickListener, OnLo
 	/**显示二维码
 	 */
 	protected void setQRCode() {
-		runThread(TAG + "setQRCode", new Runnable() {
+//		runThread(TAG + "setQRCode", new Runnable() {
+//
+//			@Override
+//			public void run() {
+//
+//				try {
+//					qRCodeBitmap = EncodingHandler.createQRCode(Constant.APP_DOWNLOAD_WEBSITE
+//							, (int) (2 * getResources().getDimension(R.dimen.qrcode_size)));
+//				} catch (WriterException e) {
+//					e.printStackTrace();
+//					Log.e(TAG, "initData  try {Bitmap qrcode = EncodingHandler.createQRCode(contactJson, ivContactQRCodeCode.getWidth());" +
+//							" >> } catch (WriterException e) {" + e.getMessage());
+//				}
+//
+//				runUiThread(new Runnable() {
+//					@Override
+//					public void run() {
+//						ivAboutQRCode.setImageBitmap(qRCodeBitmap);
+//					}
+//				});
+//			}
+//		});
 
+
+		//使用RxJava <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+		Observable.create(new ObservableOnSubscribe<Bitmap>() {
 			@Override
-			public void run() {
-
+			public void subscribe(ObservableEmitter<Bitmap> oe) throws Exception {
+				Log.d(TAG, "setQRCode  Observable.create.subscribe  >> currentThread = " + Thread.currentThread().getName());
 				try {
 					qRCodeBitmap = EncodingHandler.createQRCode(Constant.APP_DOWNLOAD_WEBSITE
 							, (int) (2 * getResources().getDimension(R.dimen.qrcode_size)));
@@ -146,14 +178,19 @@ public class AboutActivity extends BaseActivity implements OnClickListener, OnLo
 							" >> } catch (WriterException e) {" + e.getMessage());
 				}
 
-				runUiThread(new Runnable() {
-					@Override
-					public void run() {
-						ivAboutQRCode.setImageBitmap(qRCodeBitmap);
-					}
-				});		
+				oe.onComplete();
 			}
-		});
+		}).observeOn(AndroidSchedulers.mainThread()).doOnComplete(new Action() {
+			@Override
+			public void run() throws Exception {
+				Log.d(TAG, "setQRCode  Observable.doOnCompleted  qRCodeBitmap " + (qRCodeBitmap == null ? "=" : "!=") + " null"
+						+ ">> currentThread = " + Thread.currentThread().getName());
+				ivAboutQRCode.setImageBitmap(qRCodeBitmap);
+			}
+		}).subscribeOn(Schedulers.io()).subscribe();
+
+		//使用RxJava >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 	}
 
 	/**下载应用
@@ -183,7 +220,7 @@ public class AboutActivity extends BaseActivity implements OnClickListener, OnLo
 
 	@Override
 	public void initEvent() {
-		
+
 		findViewById(R.id.llAboutUpdate).setOnClickListener(this);
 		findViewById(R.id.llAboutShare).setOnClickListener(this);
 		findViewById(R.id.llAboutComment).setOnClickListener(this);
@@ -220,54 +257,80 @@ public class AboutActivity extends BaseActivity implements OnClickListener, OnLo
 	@Override
 	public void onClick(View v) {
 		switch (v.getId()) {
-		case R.id.llAboutUpdate:
-			toActivity(WebViewActivity.createIntent(context, "更新日志", Constant.UPDATE_LOG_WEBSITE));
-			break;
-		case R.id.llAboutShare:
-			CommonUtil.shareInfo(context, getString(R.string.share_app)
-					+ "\n 点击链接直接下载体验APIJSON\n" + Constant.APP_DOWNLOAD_WEBSITE);
-			break;
-		case R.id.llAboutComment:
-			showShortToast("应用未上线不能查看");
-			startActivity(new Intent(Intent.ACTION_VIEW).setData(Uri.parse("market://details?id=" + getPackageName())));
-			break;
+			case R.id.llAboutUpdate:
+				toActivity(WebViewActivity.createIntent(context, "更新日志", Constant.UPDATE_LOG_WEBSITE));
+				break;
+			case R.id.llAboutShare:
+				CommonUtil.shareInfo(context, getString(R.string.share_app)
+						+ "\n 点击链接直接下载体验APIJSON\n" + Constant.APP_DOWNLOAD_WEBSITE);
+				break;
+			case R.id.llAboutComment:
+				showShortToast("应用未上线不能查看");
+				startActivity(new Intent(Intent.ACTION_VIEW).setData(Uri.parse("market://details?id=" + getPackageName())));
+				break;
 
-		case R.id.llAboutDeveloper:
-			toActivity(WebViewActivity.createIntent(context, "开发者", Constant.APP_DEVELOPER_WEBSITE));
-			break;
-		case R.id.llAboutWeibo:
-			toActivity(WebViewActivity.createIntent(context, "博客", Constant.APP_OFFICIAL_BLOG));
-			break;
-		case R.id.llAboutContactUs:
-			CommonUtil.sendEmail(context, Constant.APP_OFFICIAL_EMAIL);
-			break;
+			case R.id.llAboutDeveloper:
+				toActivity(WebViewActivity.createIntent(context, "开发者", Constant.APP_DEVELOPER_WEBSITE));
+				break;
+			case R.id.llAboutWeibo:
+				toActivity(WebViewActivity.createIntent(context, "博客", Constant.APP_OFFICIAL_BLOG));
+				break;
+			case R.id.llAboutContactUs:
+				CommonUtil.sendEmail(context, Constant.APP_OFFICIAL_EMAIL);
+				break;
 
-		case R.id.ivAboutQRCode:
-			downloadApp();
-			break;
-		default:
-			break;
+			case R.id.ivAboutQRCode:
+				downloadApp();
+				break;
+			default:
+				break;
 		}
 	}
 
 	@Override
 	public boolean onLongClick(View v) {
 		switch (v.getId()) {
-		case R.id.llAboutDeveloper:
-			CommonUtil.copyText(context, Constant.APP_DEVELOPER_WEBSITE);
-			return true;
-		case R.id.llAboutWeibo:
-			CommonUtil.copyText(context, Constant.APP_OFFICIAL_BLOG);
-			return true;
-		case R.id.llAboutContactUs:
-			CommonUtil.copyText(context, Constant.APP_OFFICIAL_EMAIL);
-			return true;
-		default:
-			break;
+			case R.id.llAboutDeveloper:
+				CommonUtil.copyText(context, Constant.APP_DEVELOPER_WEBSITE);
+				return true;
+			case R.id.llAboutWeibo:
+				CommonUtil.copyText(context, Constant.APP_OFFICIAL_BLOG);
+				return true;
+			case R.id.llAboutContactUs:
+				CommonUtil.copyText(context, Constant.APP_OFFICIAL_EMAIL);
+				return true;
+			default:
+				break;
 		}
 		return false;
 	}
 
+
+
+	//类相关监听<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+
+		ivAboutQRCode = null;
+//		user = null;
+
+		if (qRCodeBitmap != null) {
+			if (qRCodeBitmap.isRecycled() == false) {
+				qRCodeBitmap.recycle();
+			}
+			qRCodeBitmap = null;
+		}
+		if (ivAboutQRCode != null) {
+			ivAboutQRCode.setImageBitmap(null);
+			ivAboutQRCode = null;
+		}
+	}
+
+
+	//类相关监听>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
 	//系统自带监听方法>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
