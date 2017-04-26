@@ -3,7 +3,7 @@
 全面使用RxJava。<br />
 
 两个优化明显的代码段都在setList方法内。使用到RxJava的地方做了 “使用RxJava” 的标记。<br />
-![](http://images.cnblogs.com/cnblogs_com/tommylemon/992090/t_APIJSON4RxJava.png) 
+![](http://images.cnblogs.com/cnblogs_com/tommylemon/992090/o_APIJSON4RxJava.png) 
 
 ##  总结
 1.对MomentActivity,MomentListFragment等逻辑比较复杂、缩进层级多的代码段 逻辑简化和减少缩进层级的效果明显，其它地方逻辑简单用起来反而更麻烦。<br />
